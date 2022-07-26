@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <GLFW/glfw3.h>
 #include "video_reader.hpp"
+#include "shader.hpp"
 
 int main(int argc, const char** argv) {
     GLFWwindow* window;
@@ -24,6 +24,19 @@ int main(int argc, const char** argv) {
     }
 
     glfwMakeContextCurrent(window);
+    
+    if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
+        std::cerr << "Could not create OpenGL context" << std::endl;
+        return -1;
+    }
+    
+    std::shared_ptr<sakurajin::Shader> outputShader;
+    try{
+        outputShader = std::make_shared<sakurajin::Shader>("data/shader.vert","data/shader.frag");
+    }catch(const std::exception& e){
+        sakurajin::Helper::print_exception(e);
+        return -1;
+    }
 
     // Generate texture
     GLuint tex_handle;
@@ -34,7 +47,7 @@ int main(int argc, const char** argv) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+    //glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
     // Allocate frame buffer
     constexpr int ALIGNMENT = 128;
@@ -46,16 +59,60 @@ int main(int argc, const char** argv) {
         return 1;
     }
     
+    //load the vertex buffers to store coordinates
+    unsigned int VAO = 0, EBO = 0, VBO = 0;
+    float vertices[] = {
+        // positions    // texture coords
+         16.0f,  9.0f,  1.0f, 0.0f, // top right
+         16.0f, -9.0f,  1.0f, 1.0f, // bottom right
+        -16.0f, -9.0f,  0.0f, 1.0f, // bottom left
+        -16.0f,  9.0f,  0.0f, 0.0f  // top left 
+    };
+    unsigned int indices[] = {  
+        0, 1, 3, // first triangle
+        1, 2, 3  // second triangle
+    };
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
+
+    glBindVertexArray(VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+    
+    // position attribute
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    // texture coord attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Set up orphographic projection
+        // update the viewport
         int window_width, window_height;
         glfwGetFramebufferSize(window, &window_width, &window_height);
-        glMatrixMode(GL_PROJECTION);
-        glLoadIdentity();
-        glOrtho(0, window_width, window_height, 0, -1, 1);
-        glMatrixMode(GL_MODELVIEW);
+        glViewport(0, 0, window_width, window_height);
+        
+        //create and update the projection matrix
+        float camMult = 0.9;
+        auto orth = glm::ortho(
+            -16.0f, 
+            camMult * 9.0f * window_width / window_height,
+            -9.0f,
+            camMult * 16.0f * window_height / window_width,
+            -10.0f,
+            10.0f
+        );
+        outputShader->setUniform("transform", orth);
 
         // Read a new frame and load it into texture
         int64_t pts;
@@ -75,19 +132,18 @@ int main(int argc, const char** argv) {
             glfwWaitEventsTimeout(pt_in_seconds - glfwGetTime());
         }
 
+        //activate the texture and the shader
+        glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, tex_handle);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, frame_width, frame_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, frame_data);
-
-        // Render whatever you want
-        glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, tex_handle);
-        glBegin(GL_QUADS);
-            glTexCoord2d(0,0); glVertex2i(200, 200);
-            glTexCoord2d(1,0); glVertex2i(200 + frame_width, 200);
-            glTexCoord2d(1,1); glVertex2i(200 + frame_width, 200 + frame_height);
-            glTexCoord2d(0,1); glVertex2i(200, 200 + frame_height);
-        glEnd();
-        glDisable(GL_TEXTURE_2D);
+        
+        outputShader->use();
+        
+        //draw the rectangle
+        glBindVertexArray(VAO);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        
+        glBindVertexArray(0);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
