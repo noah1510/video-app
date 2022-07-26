@@ -138,12 +138,12 @@ bool video_reader_read_frame(VideoReaderState* state, uint8_t* frame_buffer, int
     *pts = av_frame->pts;
     
     // Set up sws scaler
-    if (!sws_scaler_ctx) {
+    //if (!sws_scaler_ctx) {
         auto source_pix_fmt = correct_for_deprecated_pixel_format(av_codec_ctx->pix_fmt);
         sws_scaler_ctx = sws_getContext(width, height, source_pix_fmt,
                                         width, height, AV_PIX_FMT_RGB0,
                                         SWS_BILINEAR, NULL, NULL, NULL);
-    }
+    //}
     if (!sws_scaler_ctx) {
         printf("Couldn't initialize sw scaler\n");
         return false;
