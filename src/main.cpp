@@ -18,7 +18,7 @@ int main(int argc, const char** argv) {
     }
 
     VideoReaderState vr_state;
-    if (!video_reader_open(&vr_state, "/Users/bmj/Desktop/SPACE ECHO.mov")) {
+    if (!video_reader_open(&vr_state, "data/example_video.mp4")) {
         printf("Couldn't open video file (make sure you set a video file that exists)\n");
         return 1;
     }
