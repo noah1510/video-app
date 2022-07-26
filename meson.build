@@ -1,6 +1,6 @@
 project(
   'video-app', 
-  'cpp',
+  'c','cpp',
   version : '0.1',
   default_options : [
     'warning_level=3', 
@@ -11,6 +11,8 @@ project(
 sources = [
   'src/main.cpp',
   'src/video_reader.cpp',
+  
+  'src/glad.c',
 ]
 
 incdir = include_directories('include')
