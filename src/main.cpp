@@ -1,17 +1,42 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <chrono>
+#include <thread>
 #include "video_reader.hpp"
 #include "shader.hpp"
 
-int main(int argc, const char** argv) {
-    GLFWwindow* window;
+using namespace std::literals;
 
-    if (!glfwInit()) {
+int main(int argc, const char** argv) {
+    SDL_Window* window;
+
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0) {
         printf("Couldn't init GLFW\n");
         return 1;
     }
+    
+    // GL 4.6 + GLSL 460
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
+    
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
+    SDL_SetHint(SDL_HINT_RENDER_OPENGL_SHADERS, "1");
+    
+    //set all of the opengl ontext flags
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+    SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
 
-    window = glfwCreateWindow(800, 480, "Hello World", NULL, NULL);
+    // Create window with graphics context
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+
+    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_MAXIMIZED);
+    window = SDL_CreateWindow("libtrainsim window", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
     if (!window) {
         printf("Couldn't open window\n");
         return 1;
@@ -23,9 +48,11 @@ int main(int argc, const char** argv) {
         return 1;
     }
 
-    glfwMakeContextCurrent(window);
+    auto gl_context = SDL_GL_CreateContext(window);
+    SDL_GL_MakeCurrent(window, gl_context);
+    SDL_GL_SetSwapInterval(1);
     
-    if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
+    if (!gladLoadGLLoader((GLADloadproc) SDL_GL_GetProcAddress)) {
         std::cerr << "Could not create OpenGL context" << std::endl;
         return -1;
     }
@@ -96,12 +123,14 @@ int main(int argc, const char** argv) {
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     
-    while (!glfwWindowShouldClose(window)) {
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    SDL_Event event;
+    while (event.type != SDL_QUIT && !(event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
+        glClear(GL_COLOR_BUFFER_BIT);
 
         // update the viewport
         int window_width, window_height;
-        glfwGetFramebufferSize(window, &window_width, &window_height);
+        SDL_GetWindowSize(window, &window_width, &window_height);
+        //glfwGetFramebufferSize(window, &window_width, &window_height);
         glViewport(0, 0, window_width, window_height);
         
         //create and update the projection matrix
@@ -121,11 +150,6 @@ int main(int argc, const char** argv) {
         if (!video_reader_read_frame(&vr_state, frame_data, &pts)) {
             printf("Couldn't load video frame\n");
             return 1;
-        }
-
-        double pt_in_seconds = pts * (double)vr_state.time_base.num / (double)vr_state.time_base.den;
-        while (pt_in_seconds > glfwGetTime()) {
-            glfwWaitEventsTimeout(pt_in_seconds - glfwGetTime());
         }
 
         //activate the texture and the shader
@@ -151,8 +175,15 @@ int main(int argc, const char** argv) {
         
         glBindVertexArray(0);
 
-        glfwSwapBuffers(window);
-        glfwPollEvents();
+        SDL_GL_SwapWindow(window);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        SDL_PollEvent(&event);
+        
+        /*
+        double pt_in_seconds = pts * (double)vr_state.time_base.num / (double)vr_state.time_base.den;
+        while (pt_in_seconds > glfwGetTime()) {
+            glfwWaitEventsTimeout(pt_in_seconds - glfwGetTime());
+        }*/
     }
 
     video_reader_close(&vr_state);
