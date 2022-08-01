@@ -12,6 +12,7 @@ sources = [
   'src/main.cpp',
   'src/video_reader.cpp',
   'src/shader.cpp',
+  'src/imguiHandler.cpp',
   
   'src/glad.c',
 ]
