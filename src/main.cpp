@@ -37,17 +37,19 @@ int main(int argc, const char** argv) {
         sakurajin::Helper::print_exception(e);
         return -1;
     }
+    
+    //assign the samplers to the texture units
+    outputShader->setUniform("yTex",0);
 
     // Generate texture
-    GLuint tex_handle;
-    glGenTextures(1, &tex_handle);
-    glBindTexture(GL_TEXTURE_2D, tex_handle);
+    GLuint texRGB;
+    glGenTextures(1, &texRGB);
+    glBindTexture(GL_TEXTURE_2D, texRGB);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    //glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
     // Allocate frame buffer
     constexpr int ALIGNMENT = 128;
@@ -121,12 +123,6 @@ int main(int argc, const char** argv) {
             return 1;
         }
 
-        static bool first_frame = true;
-        if (first_frame) {
-            glfwSetTime(0.0);
-            first_frame = false;
-        }
-
         double pt_in_seconds = pts * (double)vr_state.time_base.num / (double)vr_state.time_base.den;
         while (pt_in_seconds > glfwGetTime()) {
             glfwWaitEventsTimeout(pt_in_seconds - glfwGetTime());
@@ -134,8 +130,18 @@ int main(int argc, const char** argv) {
 
         //activate the texture and the shader
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, tex_handle);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, frame_width, frame_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, frame_data);
+        glBindTexture(GL_TEXTURE_2D, texRGB);
+        glTexImage2D(
+            GL_TEXTURE_2D, 
+            0, 
+            GL_RGBA, 
+            vr_state.width, 
+            vr_state.height, 
+            0, 
+            GL_RGBA, 
+            GL_UNSIGNED_BYTE, 
+            frame_data
+        );
         
         outputShader->use();
         
