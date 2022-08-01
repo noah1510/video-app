@@ -2,3 +2,5 @@
 build/
 .cache
 *kdev4*
+subprojects/*
+!subprojects/*.wrap
